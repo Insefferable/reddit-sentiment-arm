@@ -5,9 +5,9 @@ import praw
 import pandas as pd
 from praw.models import MoreComments
 
-reddit_authorized = praw.Reddit(client_id="",
-                                client_secret=" ",
-                                user_agent=" ",
+reddit_authorized = praw.Reddit(user_agent="",
+                                client_id="",
+                                client_secret="",
                                 username="",
                                 password="")
 
@@ -20,7 +20,7 @@ subreddit = reddit_authorized.subreddit("AskPH")
 # posts = subreddit.gilded() # <- gilded are the awarded posts, no time filter
 # posts = subreddit.hot() # <- no time filter
 # posts = subreddit.new() # <- no time filter
-posts = subreddit.search(query="online",time_filter="month") 
+posts = subreddit.search(query="Shopee") 
 #posts = subreddit.top("month")
  
 posts_dict = {"Title": [],
@@ -32,26 +32,31 @@ for post in posts:
     posts_dict["Total Comments"].append(post.num_comments)
     posts_dict["Post URL"].append(post.url)
  
-top_posts_month = pd.DataFrame(posts_dict)
+posts_month = pd.DataFrame(posts_dict)
  
-print("Number of posts extracted : ",top_posts_month.shape[0])
-top_posts_month.head()
+print("Number of posts extracted : ",posts_month.shape[0])
+#posts_month.head()
 
-# for only first post, can all loop for below
-url = top_posts_month['Post URL'][0]
-submission = reddit_authorized.submission(url=url)
+all_comments = []
 
-# comment extract
-post_comments = []
-for comment in submission.comments:
-    if type(comment) == MoreComments:
-        continue
-    post_comments.append(comment.body)
- 
-comments_df = pd.DataFrame(post_comments, columns=['comment'])
+for url in posts_month['Post URL']:
+    submission = reddit_authorized.submission(url=url)
+    
+    post_comments = []
+    for comment in submission.comments:
+        if isinstance(comment, MoreComments):
+            continue
+        post_comments.append(comment.body)
+    
+    # Optionally add a reference to the post URL
+    for c in post_comments:
+        all_comments.append({'Post URL': url, 'comment': c})
+
+# Create DataFrame from all comments
+comments_df = pd.DataFrame(all_comments)
  
 print("Number of Comments : ",comments_df.shape[0])
-comments_df.head()
+#comments_df.head()
 
-#top_posts_month.to_csv("posts_askph.csv", index=False)
-#comments_df.to_csv("comments_askph.csv", index=False)
+posts_month.to_csv("posts_askph.csv", index=False)
+comments_df.to_csv("comments_askph.csv", index=False)

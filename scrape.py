@@ -12,9 +12,7 @@ reddit_authorized = praw.Reddit(user_agent=" ",
                                 username=" ",
                                 password=" ")
 
-
-# subreddits can be combined with a + (i.e. "AskPh+Philippines")
-subreddit = reddit_authorized.subreddit("AskPH+buhaydigital+InternetPH+Tech_Philippines")
+subreddit = reddit_authorized.subreddit("AskPH+buhaydigital+InternetPH+ShopeePH+Tech_Philippines")
 
 def clean_text(text):
     text = text.lower()
@@ -24,44 +22,66 @@ def clean_text(text):
     text = re.sub(r"[^\w\s']", '', text)
     return text.strip()
 
-posts_dict = {"Post ID": [], "Title": [], "Cleaned Title": [], "Total Comments": []}
+posts_dict = {
+    "Post ID": [],
+    "Title": [],
+    "Cleaned Title": [],
+    "Description": [],
+    "Cleaned Description": [],
+    "Total Comments": []
+}
 comment_data = []
 
-# by default time_filter is set to "all", otherwise: "day", "hour", "month", "week", "year"
-# posts = subreddit.controversial()
-# posts = subreddit.gilded() # <- gilded are the awarded posts, no time filter
-# posts = subreddit.hot() # <- no time filter
-# posts = subreddit.new() # <- no time filter
-# posts = subreddit.top("month")
-posts = subreddit.search(query='(shopee OR shoppee OR lazada) (recommend OR recommendation OR recommendations OR suggest OR best OR "where to buy")', limit=None)
+search_terms = ['shopee', 'shoppee', 'lazada', 'tiktok shop']
+keywords = ['recommend', 'suggest', 'good', 'better', 'best', 'where to buy', 'lf', 'looking for']
 
-for post in posts:
-    title = post.title
-    post_id = post.id
-    posts_dict["Post ID"].append(post_id)
-    posts_dict["Title"].append(title)
-    posts_dict["Cleaned Title"].append(clean_text(title))
-    posts_dict["Total Comments"].append(post.num_comments)
+unique_posts = set()
 
-    submission = reddit_authorized.submission(id=post_id)
-    submission.comments.replace_more(limit=None)
+for term in search_terms:
+    for keyword in keywords:
+        query = f'({term}) ({keyword})'
+        # Search posts from the past month
+        posts = subreddit.search(query=query, time_filter='month', limit=None)
 
-    for comment in submission.comments.list():
-        if comment.author is None or (comment.author.name == "AutoModerator"):
-            continue
+        for post in posts:
+            # Skip posts without comments
+            if post.num_comments == 0:
+                continue
 
-        if comment.body.strip().lower() in ['[deleted]', '[removed]']:
-            continue
+            if post.id in unique_posts:
+                continue
 
-        cleaned_comment = clean_text(comment.body)
+            unique_posts.add(post.id)
+            title = post.title
+            post_id = post.id
 
-        if cleaned_comment:
-            comment_data.append({
-                "Post ID": post_id,
-                "Original Comment": comment.body,
-                "Cleaned Comment": cleaned_comment
-            })
+            # Use the selftext as the description; if None, use an empty string
+            description = post.selftext if post.selftext is not None else ""
 
+            posts_dict["Post ID"].append(post_id)
+            posts_dict["Title"].append(title)
+            posts_dict["Cleaned Title"].append(clean_text(title))
+            posts_dict["Description"].append(description)
+            posts_dict["Cleaned Description"].append(clean_text(description) if description else "")
+            posts_dict["Total Comments"].append(post.num_comments)
+
+            # Process comments
+            submission = reddit_authorized.submission(id=post_id)
+            submission.comments.replace_more(limit=None)
+            for comment in submission.comments.list():
+                if comment.author is None or (comment.author.name == "AutoModerator"):
+                    continue
+                if comment.body.strip().lower() in ['[deleted]', '[removed]']:
+                    continue
+                cleaned_comment = clean_text(comment.body)
+                if cleaned_comment:
+                    comment_data.append({
+                        "Post ID": post_id,
+                        "Original Comment": comment.body,
+                        "Cleaned Comment": cleaned_comment
+                    })
+
+# Convert dictionaries to DataFrames and export as CSVs
 posts_df = pd.DataFrame(posts_dict)
 comments_df = pd.DataFrame(comment_data)
 
